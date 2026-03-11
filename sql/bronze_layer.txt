@@ -1,0 +1,111 @@
+CREATE OR REPLACE DATABASE Supply;
+USE Supply;
+
+CREATE OR REPLACE SCHEMA IF NOT EXISTS Bronze;
+USE Supply.Bronze;
+
+CREATE OR REPLACE SCHEMA IF NOT EXISTS Silver;
+CREATE OR REPLACE SCHEMA IF NOT EXISTS Gold;
+
+
+-- ── DIM_CUSTOMER ─────────────────────────────────────────────────
+CREATE OR REPLACE TABLE DIM_CUSTOMER (
+    CUSTOMER_KEY      NUMBER          NOT NULL PRIMARY KEY,
+    CUSTOMER_NAME     VARCHAR(200)    NOT NULL,
+    SEGMENT           VARCHAR(100),
+    INDUSTRY          VARCHAR(100),
+    COUNTRY           VARCHAR(100),
+    CITY              VARCHAR(100)
+);
+
+-- ── DIM_DATE ─────────────────────────────────────────────────────
+CREATE OR REPLACE TABLE DIM_DATE (
+    DATE_KEY          NUMBER          NOT NULL PRIMARY KEY,
+    FULL_DATE         DATE            NOT NULL,
+    DAY               NUMBER(2),
+    MONTH             NUMBER(2),
+    MONTH_NAME        VARCHAR(20),
+    QUARTER           NUMBER(1),
+    YEAR              NUMBER(4),
+    WEEK_NUMBER       NUMBER(2),
+    IS_WEEKEND        BOOLEAN
+);
+
+-- ── DIM_PRODUCT ──────────────────────────────────────────────────
+CREATE OR REPLACE TABLE DIM_PRODUCT (
+    PRODUCT_KEY       NUMBER          NOT NULL PRIMARY KEY,
+    PRODUCT_NAME      VARCHAR(200)    NOT NULL,
+    CATEGORY          VARCHAR(100),
+    SUBCATEGORY       VARCHAR(100),
+    BRAND             VARCHAR(100),
+    UNIT_COST         NUMBER(10,2),
+    UNIT_WEIGHT       NUMBER(10,2),
+    SHELF_LIFE_DAYS   NUMBER
+);
+
+-- ── DIM_SUPPLIER ─────────────────────────────────────────────────
+CREATE OR REPLACE TABLE DIM_SUPPLIER (
+    SUPPLIER_KEY      NUMBER          NOT NULL PRIMARY KEY,
+    SUPPLIER_NAME     VARCHAR(200)    NOT NULL,
+    COUNTRY           VARCHAR(100),
+    LEAD_TIME_DAYS    NUMBER,
+    SUPPLIER_RATING   NUMBER(3,1),
+    CONTRACT_TYPE     VARCHAR(50)
+);
+
+-- ── DIM_WAREHOUSE ────────────────────────────────────────────────
+CREATE OR REPLACE TABLE DIM_WAREHOUSE (
+    WAREHOUSE_KEY     NUMBER          NOT NULL PRIMARY KEY,
+    WAREHOUSE_NAME    VARCHAR(200)    NOT NULL,
+    CITY              VARCHAR(100),
+    PROVINCE          VARCHAR(10),
+    CAPACITY          NUMBER,
+    MANAGER_NAME      VARCHAR(200)
+);
+
+-- ================================================================
+-- FACT TABLES
+-- ================================================================
+
+-- ── FACT_INVENTORY ───────────────────────────────────────────────
+CREATE OR REPLACE TABLE FACT_INVENTORY (
+    INVENTORY_ID        NUMBER          NOT NULL PRIMARY KEY,
+    INVENTORY_DATE_KEY  NUMBER          NOT NULL REFERENCES DIM_DATE(DATE_KEY),
+    PRODUCT_KEY         NUMBER          NOT NULL REFERENCES DIM_PRODUCT(PRODUCT_KEY),
+    WAREHOUSE_KEY       NUMBER          NOT NULL REFERENCES DIM_WAREHOUSE(WAREHOUSE_KEY),
+    STOCK_ON_HAND       NUMBER,
+    REORDER_LEVEL       NUMBER,
+    UNITS_ON_ORDER      NUMBER,
+    INVENTORY_COST      NUMBER(12,2),
+    STOCKOUT_FLAG       NUMBER(1)
+);
+
+-- ── FACT_ORDERS ──────────────────────────────────────────────────
+CREATE OR REPLACE TABLE FACT_ORDERS (
+    ORDER_ID            NUMBER          NOT NULL PRIMARY KEY,
+    ORDER_DATE_KEY      NUMBER          NOT NULL REFERENCES DIM_DATE(DATE_KEY),
+    CUSTOMER_KEY        NUMBER          NOT NULL REFERENCES DIM_CUSTOMER(CUSTOMER_KEY),
+    PRODUCT_KEY         NUMBER          NOT NULL REFERENCES DIM_PRODUCT(PRODUCT_KEY),
+    WAREHOUSE_KEY       NUMBER          NOT NULL REFERENCES DIM_WAREHOUSE(WAREHOUSE_KEY),
+    SUPPLIER_KEY        NUMBER          NOT NULL REFERENCES DIM_SUPPLIER(SUPPLIER_KEY),
+    QUANTITY_ORDERED    NUMBER,
+    UNIT_PRICE          NUMBER(10,2),
+    DISCOUNT_AMOUNT     NUMBER(10,2),
+    SHIPPING_COST       NUMBER(10,2),
+    DELIVERY_DAYS       NUMBER,
+    ORDER_STATUS        VARCHAR(50),
+    REVENUE             NUMBER(12,2)
+);
+
+CREATE OR REPLACE STAGE SUPPLY_STAGE
+    FILE_FORMAT = (
+        TYPE                = 'CSV'
+        FIELD_OPTIONALLY_ENCLOSED_BY = ''
+        SKIP_HEADER         = 1
+        NULL_IF             = ('NULL', 'null', '')
+        EMPTY_FIELD_AS_NULL = TRUE
+        DATE_FORMAT         = 'YYYY-MM-DD'
+    )
+    COMMENT = 'Stage for Supply Chain CSV files';
+
+-- Files were uploaded declaratively to the stage and then to the database.
